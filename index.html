@@ -308,44 +308,37 @@ async function startAR() {
 
     const anchorState = [];
 
-    // Shared paint splat textures — graffiti palette
-    const SPLAT_COLORS = ['#E87DB5','#7ECEF4','#FF8C3A','#FFFFFF','#CC2288','#44DDFF'];
-    const splatTextures = SPLAT_COLORS.map(hex => {
-      const sc = document.createElement('canvas'); sc.width = 64; sc.height = 64;
-      const sx = sc.getContext('2d');
-      // Main blob
-      sx.beginPath(); sx.arc(32, 32, 26, 0, Math.PI*2); sx.fillStyle = hex; sx.fill();
-      // Small satellite drops for paint-splat feel
-      [[52,14,7],[14,50,6],[54,48,5],[10,18,5]].forEach(([x,y,r]) => {
-        sx.beginPath(); sx.arc(x,y,r,0,Math.PI*2); sx.fill();
-      });
-      return new THREE.CanvasTexture(sc);
-    });
+    // Confetti — shared geometry, per-piece coloured material
+    const CONFETTI_COLORS = [0xFF6B9D, 0x7ECEF4, 0xFFE14D, 0xFF8C3A, 0xC77DFF, 0x4CFFB3, 0xFF4757, 0xFFFFFF];
+    const confGeo = new THREE.PlaneGeometry(0.024, 0.011);
 
-    function makeSplat(idx) {
-      const mat = new THREE.SpriteMaterial({ map: splatTextures[idx % splatTextures.length], transparent: true });
-      const s = new THREE.Sprite(mat);
-      s.visible = false;
-      s.userData = { mat, vx:0, vy:0, vz:0, life:0, maxLife:1, sz:0.05 };
-      return s;
+    function makeConfetti(i) {
+      const mesh = new THREE.Mesh(confGeo, new THREE.MeshBasicMaterial({
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        side: THREE.DoubleSide, transparent: true
+      }));
+      mesh.visible = false;
+      mesh.userData = { mat: mesh.material, vx:0, vy:0, vz:0, life:0, maxLife:1, rx:0, ry:0, rz:0 };
+      return mesh;
     }
 
-    function burstSplats(splats) {
-      splats.forEach((s, i) => {
-        const angle = (i / splats.length) * Math.PI * 2 + Math.random() * 0.8;
-        const speed = 0.18 + Math.random() * 0.32;
-        s.position.set(0, 0.05, 0);
-        s.visible = true;
-        const u = s.userData;
+    function burstConfetti(pieces) {
+      pieces.forEach(p => {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.10 + Math.random() * 0.28;
+        p.position.set(0, 0.08, 0);
+        p.rotation.set(Math.random()*Math.PI*2, Math.random()*Math.PI*2, Math.random()*Math.PI*2);
+        p.visible = true;
+        const u = p.userData;
         u.vx = Math.cos(angle) * speed;
-        u.vy = 0.25 + Math.random() * 0.35;
+        u.vy = 0.22 + Math.random() * 0.38;
         u.vz = Math.sin(angle) * speed;
         u.life = 0;
-        u.maxLife = 1.2 + Math.random() * 0.8;
-        u.sz = 0.035 + Math.random() * 0.055;
+        u.maxLife = 1.4 + Math.random() * 1.0;
+        u.rx = (Math.random() - 0.5) * 9;
+        u.ry = (Math.random() - 0.5) * 9;
+        u.rz = (Math.random() - 0.5) * 6;
         u.mat.opacity = 1;
-        u.mat.rotation = Math.random() * Math.PI * 2;
-        u.rotSpeed = (Math.random() - 0.5) * 4;
       });
     }
 
@@ -359,27 +352,27 @@ async function startAR() {
       sprite.scale.set(0, 0, 0);
       sprite.position.set(0, 0.32, 0);
 
-      // Paint splats — 18 droplets per anchor
-      const splats = Array.from({ length: 18 }, (_, i) => makeSplat(i));
+      // Confetti — 30 pieces per anchor
+      const confetti = Array.from({ length: 30 }, (_, i) => makeConfetti(i));
 
       const anchor = mindarThree.addAnchor(idx);
       anchor.group.add(sprite);
-      splats.forEach(s => anchor.group.add(s));
+      confetti.forEach(p => anchor.group.add(p));
 
-      const state = { trackStart: null, lastBurst: 0, sprite, splats, cv, ctx2d, tex, digits: marker.code.split(''), allLocked: false };
+      const state = { trackStart: null, lastBurst: 0, sprite, confetti, cv, ctx2d, tex, digits: marker.code.split(''), allLocked: false };
       anchorState.push(state);
 
       anchor.onTargetFound = () => {
         state.trackStart = Date.now();
         state.lastBurst = Date.now();
         state.allLocked = false;
-        burstSplats(state.splats);
+        burstConfetti(state.confetti);
         document.getElementById('hint-text').textContent = '🎯 ' + marker.name;
       };
       anchor.onTargetLost = () => {
         state.trackStart = null;
         sprite.scale.set(0,0,0);
-        state.splats.forEach(s => { s.visible = false; });
+        state.confetti.forEach(p => { p.visible = false; });
         document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
       };
     });
@@ -409,26 +402,26 @@ async function startAR() {
         // Repeat burst every 2.8s
         if (elapsed > 400 && t - state.lastBurst > 2800) {
           state.lastBurst = t;
-          burstSplats(splats);
+          burstConfetti(state.confetti);
         }
 
-        // Paint splat physics
-        splats.forEach(s => {
-          if (!s.visible) return;
-          const u = s.userData;
+        // Confetti physics
+        state.confetti.forEach(p => {
+          if (!p.visible) return;
+          const u = p.userData;
           u.life += dt;
           const ratio = u.life / u.maxLife;
-          if (ratio >= 1) { s.visible = false; return; }
-          s.position.x += u.vx * dt;
-          s.position.y += u.vy * dt;
-          s.position.z += u.vz * dt;
-          u.vy -= 0.35 * dt; // gravity
-          u.mat.rotation += u.rotSpeed * dt;
-          // Pop in, then fade out in last 30%
-          const pop = Math.min(1, ratio * 8);
-          const fade = ratio > 0.7 ? 1 - (ratio - 0.7) / 0.3 : 1;
-          u.mat.opacity = fade;
-          s.scale.setScalar(u.sz * pop);
+          if (ratio >= 1) { p.visible = false; return; }
+          p.position.x += u.vx * dt;
+          p.position.y += u.vy * dt;
+          p.position.z += u.vz * dt;
+          u.vy -= 0.38 * dt;        // gravity
+          u.vx *= (1 - 0.6 * dt);   // air resistance
+          u.vz *= (1 - 0.6 * dt);
+          p.rotation.x += u.rx * dt; // tumble
+          p.rotation.y += u.ry * dt;
+          p.rotation.z += u.rz * dt;
+          u.mat.opacity = ratio > 0.72 ? 1 - (ratio - 0.72) / 0.28 : 1;
         });
 
         // Canvas slot machine
