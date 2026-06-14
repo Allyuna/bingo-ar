@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Bingo Secret — Studio La Milie</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&display=swap" rel="stylesheet" />
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js" } }
+  </script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Poppins', Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -245,7 +248,7 @@ async function startAR() {
   try {
     const mindarMod = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js');
     MindARThree = mindarMod.MindARThree ?? mindarMod.default?.MindARThree ?? mindarMod.default;
-    THREE = await import('https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js');
+    THREE = await import('three');
   } catch(e) {
     showError('⚠️ Librairie AR manquante', 'Erreur de chargement : ' + (e.message || String(e)));
     return;
