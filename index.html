@@ -126,7 +126,6 @@
       <div class="co bl"></div><div class="co br"></div>
       <div id="sl"></div>
     </div>
-    <div id="hint-text">📷 Pointez vers l'un de vos symboles</div>
   </div>
   <div></div><!-- spacer -->
 </div>
@@ -367,13 +366,11 @@ async function startAR() {
         state.lastBurst = Date.now();
         state.allLocked = false;
         burstConfetti(state.confetti);
-        document.getElementById('hint-text').textContent = '🎯 ' + marker.name;
       };
       anchor.onTargetLost = () => {
         state.trackStart = null;
         sprite.scale.set(0,0,0);
         state.confetti.forEach(p => { p.visible = false; });
-        document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
       };
     });
 
