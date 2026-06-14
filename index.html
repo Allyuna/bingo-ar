@@ -161,11 +161,9 @@
   Compile order: Cerceau, Tissu, Pole, Spirale, Étoile, Éclair,
   Projecteur, Ticket, Note, Applaudissements, Clé, Cadenas.
 -->
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"
-  onerror="document.getElementById('status-line').textContent='Erreur réseau — vérifiez votre connexion.'; document.getElementById('status-line').className='err';">
-</script>
-<script>
-'use strict';
+<script type="module">
+import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js';
 
 // Index 0–11 must match the compilation order of targets.mind
 const MARKERS = [
@@ -196,7 +194,6 @@ function showError(title, msg) {
   document.getElementById('err').classList.add('on');
 }
 
-// Build the floating code card texture for a given code string
 function buildCard(code) {
   const W = 512, H = 256;
   const cv = document.createElement('canvas');
@@ -205,33 +202,33 @@ function buildCard(code) {
 
   function rr(x, y, w, h, r) {
     ctx.beginPath();
-    ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
-    ctx.quadraticCurveTo(x+w, y, x+w, y+r); ctx.lineTo(x+w, y+h-r);
-    ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h); ctx.lineTo(x+r, y+h);
-    ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r);
-    ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
   }
 
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#4AAAD8'); bg.addColorStop(1, '#CC5FA0');
-  rr(0, 0, W, H, 36); ctx.fillStyle = bg; ctx.fill();
+  const bg = ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#4AAAD8'); bg.addColorStop(1,'#CC5FA0');
+  rr(0,0,W,H,36); ctx.fillStyle = bg; ctx.fill();
 
-  const sh = ctx.createLinearGradient(0, 0, 0, H * 0.55);
-  sh.addColorStop(0, 'rgba(255,255,255,.18)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
-  rr(2, 2, W-4, H*0.55, 34); ctx.fillStyle = sh; ctx.fill();
+  const sh = ctx.createLinearGradient(0,0,0,H*0.55);
+  sh.addColorStop(0,'rgba(255,255,255,.18)'); sh.addColorStop(1,'rgba(255,255,255,0)');
+  rr(2,2,W-4,H*0.55,34); ctx.fillStyle = sh; ctx.fill();
 
-  rr(5, 5, W-10, H-10, 32);
-  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.stroke();
+  rr(5,5,W-10,H-10,32);
+  ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=3; ctx.stroke();
 
-  ctx.fillStyle = 'rgba(255,255,255,.7)';
-  ctx.font = '700 20px Poppins,Arial'; ctx.textAlign = 'center';
-  ctx.fillText('CODE SECRET', W/2, 48);
+  ctx.fillStyle='rgba(255,255,255,.7)';
+  ctx.font='700 20px Poppins,Arial'; ctx.textAlign='center';
+  ctx.fillText('CODE SECRET',W/2,48);
 
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
-  ctx.fillStyle = '#fff';
-  ctx.font = '800 138px Poppins,Arial'; ctx.textBaseline = 'middle';
-  ctx.fillText(code, W/2, H/2 + 18);
+  ctx.shadowColor='rgba(0,0,0,.4)'; ctx.shadowBlur=16; ctx.shadowOffsetY=6;
+  ctx.fillStyle='#fff';
+  ctx.font='800 138px Poppins,Arial'; ctx.textBaseline='middle';
+  ctx.fillText(code,W/2,H/2+18);
   ctx.restore();
 
   return cv;
@@ -239,19 +236,14 @@ function buildCard(code) {
 
 let mindarThree = null;
 
-window.startAR = async function() {
+async function startAR() {
   const btn = document.getElementById('start-btn');
   btn.disabled = true;
   document.getElementById('spinner').style.display = 'block';
   setStatus('Initialisation…');
 
-  if (!window.MINDAR || !window.MINDAR.IMAGE) {
-    showError('⚠️ Librairie AR manquante', 'La librairie AR n\'a pas pu se charger. Rechargez la page.');
-    return;
-  }
-
   try {
-    mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    mindarThree = new MindARThree({
       container: document.getElementById('ar-container'),
       imageTargetSrc: 'targets.mind',
       maxTrack: MARKERS.length,
@@ -262,40 +254,37 @@ window.startAR = async function() {
 
     const { renderer, scene, camera } = mindarThree;
     renderer.setClearColor(0x000000, 0);
-    renderer.toneMapping = window.THREE.NoToneMapping;
-    scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
+    renderer.toneMapping = THREE.NoToneMapping;
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
 
-    // Particle geometry shared across all anchors
-    const pGeo = new window.THREE.SphereGeometry(0.007, 4, 4);
+    const pGeo = new THREE.SphereGeometry(0.007, 4, 4);
     const pMats = [
-      new window.THREE.MeshBasicMaterial({ color: 0x7ECEF4 }),
-      new window.THREE.MeshBasicMaterial({ color: 0xE87DB5 }),
-      new window.THREE.MeshBasicMaterial({ color: 0xffffff }),
+      new THREE.MeshBasicMaterial({ color: 0x7ECEF4 }),
+      new THREE.MeshBasicMaterial({ color: 0xE87DB5 }),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
     ];
 
-    // Track state per anchor
     const anchorState = [];
 
     MARKERS.forEach((marker, idx) => {
-      const tex = new window.THREE.CanvasTexture(buildCard(marker.code));
-      tex.encoding = window.THREE.sRGBEncoding;
+      const tex = new THREE.CanvasTexture(buildCard(marker.code));
 
-      const card = new window.THREE.Mesh(
-        new window.THREE.BoxGeometry(0.50, 0.25, 0.022),
+      const card = new THREE.Mesh(
+        new THREE.BoxGeometry(0.50, 0.25, 0.022),
         [
-          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new window.THREE.MeshBasicMaterial({ map: tex }),
-          new window.THREE.MeshBasicMaterial({ color: 0xCC5FA0 }),
+          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new THREE.MeshBasicMaterial({ map: tex }),
+          new THREE.MeshBasicMaterial({ color: 0xCC5FA0 }),
         ]
       );
       card.position.set(0, 0.20, 0);
       card.scale.set(0, 0, 0);
 
       const particles = Array.from({ length: 10 }, (_, i) => {
-        const m = new window.THREE.Mesh(pGeo, pMats[i % 3]);
+        const m = new THREE.Mesh(pGeo, pMats[i % 3]);
         m.visible = false;
         m.userData = {
           ph: (i / 10) * Math.PI * 2,
@@ -311,7 +300,7 @@ window.startAR = async function() {
       anchor.group.add(card);
       particles.forEach(p => anchor.group.add(p));
 
-      const state = { trackStart: null, bannerTimer: null, card, particles };
+      const state = { trackStart: null, card, particles };
       anchorState.push(state);
 
       anchor.onTargetFound = () => {
@@ -321,7 +310,6 @@ window.startAR = async function() {
 
       anchor.onTargetLost = () => {
         state.trackStart = null;
-        clearTimeout(state.bannerTimer);
         card.scale.set(0, 0, 0);
         particles.forEach(p => { p.visible = false; });
         document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
@@ -336,7 +324,6 @@ window.startAR = async function() {
 
     renderer.setAnimationLoop(() => {
       const t = Date.now();
-
       anchorState.forEach(({ trackStart, card, particles }) => {
         if (trackStart === null) return;
         const el = t - trackStart;
@@ -345,7 +332,6 @@ window.startAR = async function() {
         card.position.y = 0.20 + Math.sin(t * 0.0019) * 0.013;
         card.rotation.y = Math.sin(t * 0.0009) * 0.09;
         card.rotation.x = Math.sin(t * 0.0013) * 0.04;
-
         if (el > 500) {
           particles.forEach(p => {
             p.visible = true;
@@ -358,7 +344,6 @@ window.startAR = async function() {
           });
         }
       });
-
       renderer.render(scene, camera);
     });
 
@@ -373,7 +358,10 @@ window.startAR = async function() {
       showError('⚠️ Erreur (' + ((e && e.name) || '?') + ')', 'Détail : ' + (e && e.message || String(e)));
     }
   }
-};
+}
+
+// Expose to button onclick
+window.startAR = startAR;
 
 window.addEventListener('beforeunload', () => {
   if (mindarThree) try { mindarThree.stop(); } catch(_) {}
