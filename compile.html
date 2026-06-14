@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compiler les cibles — Bingo Secret</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js" } }
+  </script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d0d1a; font-family: 'Poppins', Arial, sans-serif; color: #f0f0f8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; gap: 28px; }
+
+    h1 { font-size: 28px; font-weight: 800; background: linear-gradient(135deg,#7ECEF4,#E87DB5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; }
+    p.sub { font-size: 14px; color: rgba(255,255,255,.5); text-align: center; max-width: 420px; line-height: 1.7; }
+
+    .drop-zone {
+      width: 100%; max-width: 480px;
+      border: 2px dashed rgba(91,179,224,.4);
+      border-radius: 20px; padding: 40px 24px;
+      text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: rgba(255,255,255,.04);
+    }
+    .drop-zone:hover, .drop-zone.over { border-color: #7ECEF4; background: rgba(91,179,224,.08); }
+    .drop-icon { font-size: 40px; margin-bottom: 12px; }
+    .drop-label { font-size: 15px; font-weight: 600; color: rgba(255,255,255,.7); }
+    .drop-hint  { font-size: 12px; color: rgba(255,255,255,.35); margin-top: 6px; }
+    #file-input { display: none; }
+
+    #preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; width: 100%; max-width: 480px; }
+    .thumb { background: rgba(255,255,255,.06); border-radius: 12px; overflow: hidden; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .thumb span { font-size: 10px; color: rgba(255,255,255,.4); }
+
+    #compile-btn {
+      padding: 16px 40px; max-width: 340px; width: 100%;
+      background: linear-gradient(135deg,#5BB3E0,#D96BA8);
+      color: #fff; font-family: 'Poppins',Arial,sans-serif; font-size: 16px; font-weight: 700;
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(91,179,224,.35);
+      transition: opacity .2s, transform .1s;
+      display: none;
+    }
+    #compile-btn:disabled { opacity: .5; cursor: not-allowed; }
+    #compile-btn:not(:disabled):active { transform: scale(0.97); }
+
+    #log {
+      width: 100%; max-width: 480px;
+      background: rgba(255,255,255,.05); border-radius: 14px;
+      padding: 16px 18px; font-size: 13px; color: rgba(255,255,255,.6);
+      line-height: 1.8; display: none;
+    }
+    #log .ok  { color: #4cff91; }
+    #log .err { color: #ff6b6b; }
+
+    .progress-bar { width: 100%; max-width: 480px; height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; display: none; }
+    .progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#5BB3E0,#D96BA8); width: 0%; transition: width .3s; }
+  </style>
+</head>
+<body>
+
+<h1>Compiler les cibles AR</h1>
+<p class="sub">Chargez vos 12 images de symboles — elles seront compilées en un seul fichier <code>targets.mind</code> prêt à l'emploi.</p>
+
+<div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+  <div class="drop-icon">🖼️</div>
+  <div class="drop-label">Cliquez ou glissez vos images ici</div>
+  <div class="drop-hint">JPG, PNG — dans l'ordre : Cerceau, Tissu, Pole, Spirale, Étoile, Éclair, Projecteur, Ticket, Note, Applaudissements, Clé, Cadenas</div>
+  <input type="file" id="file-input" multiple accept="image/*" />
+</div>
+
+<div id="preview-grid"></div>
+
+<button id="compile-btn" onclick="compile()">⚙️ &nbsp;Compiler targets.mind</button>
+
+<div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+
+<div id="log"></div>
+
+<script type="module">
+import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js';
+
+const NAMES = ['Cerceau Aérien','Tissu Aérien','Pole Dance','Spirale','Étoile','Éclair','Projecteur','Ticket','Note de Musique','Applaudissements','Clé','Cadenas'];
+
+let files = [];
+
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.innerHTML += `<div class="${cls || ''}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.display = 'block';
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function renderPreviews() {
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = '';
+  files.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    const span = document.createElement('span');
+    span.textContent = (i + 1) + '. ' + (NAMES[i] || f.name);
+    div.append(img, span);
+    grid.appendChild(div);
+  });
+  const btn = document.getElementById('compile-btn');
+  btn.style.display = files.length > 0 ? 'block' : 'none';
+}
+
+function handleFiles(newFiles) {
+  files = Array.from(newFiles);
+  renderPreviews();
+}
+
+document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleFiles(e.dataTransfer.files); });
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+window.compile = async function() {
+  const btn = document.getElementById('compile-btn');
+  btn.disabled = true;
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('log').style.display = 'block';
+  log('Chargement des images…');
+
+  try {
+    const images = await Promise.all(files.map(loadImage));
+    log('✓ ' + images.length + ' image(s) chargée(s)');
+
+    log('Compilation en cours… (peut prendre 1-2 minutes)');
+    const compiler = new Compiler();
+
+    await compiler.compileImageTargets(images, progress => {
+      const pct = Math.round(progress * 100);
+      setProgress(pct);
+      document.getElementById('log').lastElementChild.textContent = `Compilation… ${pct}%`;
+    });
+
+    log('✓ Compilation terminée', 'ok');
+    log('Export du fichier…');
+
+    const buffer = await compiler.exportData();
+    const blob = new Blob([buffer]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'targets.mind';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    log('✅ targets.mind téléchargé ! Remplacez le fichier dans bingo-ar/ et poussez sur GitHub.', 'ok');
+  } catch(e) {
+    log('❌ Erreur : ' + (e.message || String(e)), 'err');
+    console.error(e);
+  }
+
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>
