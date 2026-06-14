@@ -232,14 +232,6 @@ function drawCode(ctx, digits, elapsed) {
   ctx.strokeStyle = 'rgba(232,125,181,0.22)'; ctx.lineWidth = 1;
   ctx.stroke(); ctx.restore();
 
-  // Horizontal scanlines inside circle
-  ctx.save(); ctx.globalAlpha = 0.045; ctx.strokeStyle = '#7ECEF4'; ctx.lineWidth = 1;
-  for (let y = 8; y < H; y += 14) {
-    const dx = Math.sqrt(Math.max(0, 236*236 - (y - H/2)*(y - H/2)));
-    if (dx > 0) { ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); }
-  }
-  ctx.restore();
-
   // Label
   ctx.save();
   ctx.font = '700 22px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -315,7 +307,47 @@ async function startAR() {
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
 
     const anchorState = [];
-    const pGeo = new THREE.SphereGeometry(0.006, 4, 4);
+
+    // Shared paint splat textures — graffiti palette
+    const SPLAT_COLORS = ['#E87DB5','#7ECEF4','#FF8C3A','#FFFFFF','#CC2288','#44DDFF'];
+    const splatTextures = SPLAT_COLORS.map(hex => {
+      const sc = document.createElement('canvas'); sc.width = 64; sc.height = 64;
+      const sx = sc.getContext('2d');
+      // Main blob
+      sx.beginPath(); sx.arc(32, 32, 26, 0, Math.PI*2); sx.fillStyle = hex; sx.fill();
+      // Small satellite drops for paint-splat feel
+      [[52,14,7],[14,50,6],[54,48,5],[10,18,5]].forEach(([x,y,r]) => {
+        sx.beginPath(); sx.arc(x,y,r,0,Math.PI*2); sx.fill();
+      });
+      return new THREE.CanvasTexture(sc);
+    });
+
+    function makeSplat(idx) {
+      const mat = new THREE.SpriteMaterial({ map: splatTextures[idx % splatTextures.length], transparent: true });
+      const s = new THREE.Sprite(mat);
+      s.visible = false;
+      s.userData = { mat, vx:0, vy:0, vz:0, life:0, maxLife:1, sz:0.05 };
+      return s;
+    }
+
+    function burstSplats(splats) {
+      splats.forEach((s, i) => {
+        const angle = (i / splats.length) * Math.PI * 2 + Math.random() * 0.8;
+        const speed = 0.18 + Math.random() * 0.32;
+        s.position.set(0, 0.05, 0);
+        s.visible = true;
+        const u = s.userData;
+        u.vx = Math.cos(angle) * speed;
+        u.vy = 0.25 + Math.random() * 0.35;
+        u.vz = Math.sin(angle) * speed;
+        u.life = 0;
+        u.maxLife = 1.2 + Math.random() * 0.8;
+        u.sz = 0.035 + Math.random() * 0.055;
+        u.mat.opacity = 1;
+        u.mat.rotation = Math.random() * Math.PI * 2;
+        u.rotSpeed = (Math.random() - 0.5) * 4;
+      });
+    }
 
     MARKERS.forEach((marker, idx) => {
       // Canvas sprite (always faces camera)
@@ -327,46 +359,27 @@ async function startAR() {
       sprite.scale.set(0, 0, 0);
       sprite.position.set(0, 0.32, 0);
 
-      // Gyroscope ring 1 (cyan, slightly tilted)
-      const ring1 = new THREE.Mesh(
-        new THREE.TorusGeometry(0.21, 0.007, 8, 64),
-        new THREE.MeshBasicMaterial({ color: 0x7ECEF4 })
-      );
-      ring1.rotation.x = Math.PI * 0.18;
-      ring1.scale.set(0, 0, 0);
-
-      // Gyroscope ring 2 (pink, opposite tilt)
-      const ring2 = new THREE.Mesh(
-        new THREE.TorusGeometry(0.21, 0.007, 8, 64),
-        new THREE.MeshBasicMaterial({ color: 0xE87DB5 })
-      );
-      ring2.rotation.x = -Math.PI * 0.18;
-      ring2.scale.set(0, 0, 0);
-
-      // Orbiting particles
-      const particles = Array.from({ length: 8 }, (_, i) => {
-        const m = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: i%2===0 ? 0x7ECEF4 : 0xE87DB5 }));
-        m.visible = false;
-        m.userData = { ph: (i/8)*Math.PI*2, r: 0.27, sp: 0.7+Math.random()*0.6, yb: 0.12, ya: 0.025 };
-        return m;
-      });
+      // Paint splats — 18 droplets per anchor
+      const splats = Array.from({ length: 18 }, (_, i) => makeSplat(i));
 
       const anchor = mindarThree.addAnchor(idx);
-      anchor.group.add(sprite, ring1, ring2);
-      particles.forEach(p => anchor.group.add(p));
+      anchor.group.add(sprite);
+      splats.forEach(s => anchor.group.add(s));
 
-      const state = { trackStart: null, sprite, ring1, ring2, particles, cv, ctx2d, tex, digits: marker.code.split(''), allLocked: false };
+      const state = { trackStart: null, lastBurst: 0, sprite, splats, cv, ctx2d, tex, digits: marker.code.split(''), allLocked: false };
       anchorState.push(state);
 
       anchor.onTargetFound = () => {
         state.trackStart = Date.now();
+        state.lastBurst = Date.now();
         state.allLocked = false;
+        burstSplats(state.splats);
         document.getElementById('hint-text').textContent = '🎯 ' + marker.name;
       };
       anchor.onTargetLost = () => {
         state.trackStart = null;
-        sprite.scale.set(0,0,0); ring1.scale.set(0,0,0); ring2.scale.set(0,0,0);
-        particles.forEach(p => { p.visible = false; });
+        sprite.scale.set(0,0,0);
+        state.splats.forEach(s => { s.visible = false; });
         document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
       };
     });
@@ -376,42 +389,55 @@ async function startAR() {
     document.getElementById('splash').style.display = 'none';
     document.getElementById('hud').classList.add('on');
 
+    let lastT = 0;
     renderer.setAnimationLoop(() => {
       const t = Date.now();
+      const dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0.016;
+      lastT = t;
+
       anchorState.forEach(state => {
-        const { trackStart, sprite, ring1, ring2, particles, ctx2d, tex, digits } = state;
+        const { trackStart, sprite, splats, ctx2d, tex, digits } = state;
         if (trackStart === null) return;
         const elapsed = t - trackStart;
 
-        // Spring scale-in
+        // Sprite scale-in + float
         const s = 1 - Math.pow(1 - Math.min(1, elapsed / 550), 3);
         const ss = s * 0.50;
         sprite.scale.set(ss, ss, ss);
         sprite.position.y = 0.30 + Math.sin(t * 0.0018) * 0.014;
 
-        ring1.scale.set(s, s, s);
-        ring2.scale.set(s, s, s);
-        ring1.rotation.y = t * 0.0014;
-        ring2.rotation.y = -t * 0.0009;
-
-        if (elapsed > 350) {
-          particles.forEach(p => {
-            p.visible = true;
-            const u = p.userData;
-            const a = t * 0.001 * u.sp + u.ph;
-            p.position.x = Math.cos(a) * u.r;
-            p.position.z = Math.sin(a) * u.r;
-            p.position.y = u.yb + Math.sin(t * 0.002 + u.ph) * u.ya;
-          });
+        // Repeat burst every 2.8s
+        if (elapsed > 400 && t - state.lastBurst > 2800) {
+          state.lastBurst = t;
+          burstSplats(splats);
         }
 
-        // Canvas: update during slot machine phase, then once on lock
+        // Paint splat physics
+        splats.forEach(s => {
+          if (!s.visible) return;
+          const u = s.userData;
+          u.life += dt;
+          const ratio = u.life / u.maxLife;
+          if (ratio >= 1) { s.visible = false; return; }
+          s.position.x += u.vx * dt;
+          s.position.y += u.vy * dt;
+          s.position.z += u.vz * dt;
+          u.vy -= 0.35 * dt; // gravity
+          u.mat.rotation += u.rotSpeed * dt;
+          // Pop in, then fade out in last 30%
+          const pop = Math.min(1, ratio * 8);
+          const fade = ratio > 0.7 ? 1 - (ratio - 0.7) / 0.3 : 1;
+          u.mat.opacity = fade;
+          s.scale.setScalar(u.sz * pop);
+        });
+
+        // Canvas slot machine
         if (!state.allLocked) {
           drawCode(ctx2d, digits, elapsed);
           tex.needsUpdate = true;
           if (elapsed > 1150) {
             state.allLocked = true;
-            drawCode(ctx2d, digits, 2000); // force final locked state
+            drawCode(ctx2d, digits, 2000);
             tex.needsUpdate = true;
           }
         }
