@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Bingo Secret — Studio La Milie</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Poppins', Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+    /* ── AR layer ── */
+    #ar-container { position: fixed; inset: 0; }
+    #ar-container video  { position: absolute!important; inset: 0!important; width: 100%!important; height: 100%!important; object-fit: cover!important; z-index: 0; }
+    #ar-container canvas { position: absolute!important; inset: 0!important; width: 100%!important; height: 100%!important; z-index: 1; }
+
+    /* ── Splash ── */
+    #splash {
+      position: fixed; inset: 0; z-index: 500;
+      background: #0d0d1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 22px; padding: 40px 28px; color: #fff; text-align: center;
+    }
+
+    .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.18; pointer-events: none; }
+    .orb-blue { width: 380px; height: 380px; background: #5BB3E0; top: -120px; right: -120px; }
+    .orb-pink  { width: 320px; height: 320px; background: #D96BA8; bottom: 0; left: -80px; }
+
+    .logo-wrap {
+      width: 96px; height: 96px; background: #fff; border-radius: 22px;
+      display: flex; align-items: center; justify-content: center; padding: 9px;
+      box-shadow: 0 0 30px rgba(91,179,224,.35), 0 0 70px rgba(217,107,168,.2);
+      animation: float 4s ease-in-out infinite;
+    }
+    .logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+    .s-label { font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,.38); }
+    .s-title  { font-size: 44px; font-weight: 800; line-height: 1.05; background: linear-gradient(135deg,#7ECEF4,#E87DB5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    .divider { width: 44px; height: 3px; background: linear-gradient(90deg,#5BB3E0,#D96BA8); border-radius: 2px; }
+
+    .info-card {
+      background: rgba(255,255,255,.06); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 20px;
+      padding: 18px 22px; max-width: 300px; width: 100%;
+    }
+    .info-icon { font-size: 26px; margin-bottom: 8px; }
+    .info-text { font-size: 14px; font-weight: 500; color: rgba(255,255,255,.8); line-height: 1.65; }
+    .info-text strong { background: linear-gradient(135deg,#7ECEF4,#E87DB5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    #start-btn {
+      padding: 17px 40px; max-width: 280px; width: 100%;
+      background: linear-gradient(135deg,#5BB3E0,#D96BA8);
+      color: #fff; font-family: 'Poppins',Arial,sans-serif; font-size: 16px; font-weight: 700;
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 4px 28px rgba(91,179,224,.4);
+      animation: btnpulse 2.2s ease-in-out infinite;
+      transition: transform .1s, opacity .2s;
+    }
+    #start-btn:disabled { opacity: .5; animation: none; }
+    #start-btn:active { transform: scale(0.97); }
+    @keyframes btnpulse { 0%,100%{box-shadow:0 4px 28px rgba(91,179,224,.4)} 50%{box-shadow:0 6px 40px rgba(217,107,168,.55)} }
+
+    .spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,.12); border-top-color: #5BB3E0; border-radius: 50%; animation: spin .8s linear infinite; display: none; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    #status-line { font-size: 12px; color: rgba(255,255,255,.4); min-height: 16px; }
+    #status-line.err { color: #ff6b6b; }
+
+    /* ── HUD (shown once camera is live) ── */
+    #hud {
+      position: fixed; inset: 0; z-index: 200;
+      display: none; flex-direction: column; align-items: center; justify-content: space-between;
+      pointer-events: none;
+      padding: max(env(safe-area-inset-top),48px) 20px max(env(safe-area-inset-bottom),32px);
+    }
+    #hud.on { display: flex; }
+
+    /* Top bar */
+    .hud-top { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; pointer-events: all; }
+    .hud-logo { width: 34px; height: 34px; border-radius: 8px; background: #fff; padding: 3px; }
+    .hud-logo img { width: 100%; height: 100%; object-fit: contain; }
+    .hud-title { font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,.7); text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+
+    /* Viewfinder */
+    .hud-mid { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    #vf { position: relative; width: 176px; height: 176px; }
+    .co { position: absolute; width: 26px; height: 26px; }
+    .tl { top:0;left:0;  border-top:3px solid #7ECEF4;border-left:3px solid #7ECEF4;  border-radius:3px 0 0 0; }
+    .tr { top:0;right:0; border-top:3px solid #E87DB5;border-right:3px solid #E87DB5; border-radius:0 3px 0 0; }
+    .bl { bottom:0;left:0;  border-bottom:3px solid #E87DB5;border-left:3px solid #E87DB5; border-radius:0 0 0 3px; }
+    .br { bottom:0;right:0; border-bottom:3px solid #7ECEF4;border-right:3px solid #7ECEF4; border-radius:0 0 3px 0; }
+    #sl { position:absolute;left:5px;right:5px;height:2px;background:linear-gradient(90deg,transparent,#7ECEF4 40%,#E87DB5 60%,transparent);box-shadow:0 0 7px rgba(126,206,244,.9);animation:sweep 2.2s ease-in-out infinite; }
+    @keyframes sweep { 0%{top:0;opacity:1}85%{top:100%;opacity:.35}100%{top:100%;opacity:0} }
+    #hint-text { background:rgba(0,0,0,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:13px;font-weight:500;padding:9px 18px;border-radius:14px;text-align:center;line-height:1.5; }
+
+    /* ── Error overlay ── */
+    #err { display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:36px;text-align:center;color:#fff; }
+    #err.on { display:flex; }
+    #err h2 { font-size:19px;font-weight:700; }
+    #err p  { font-size:13px;color:rgba(255,255,255,.6);max-width:280px;line-height:1.65; }
+    #err button { padding:11px 28px;background:linear-gradient(135deg,#5BB3E0,#D96BA8);border:none;border-radius:50px;color:#fff;font-family:'Poppins',Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer; }
+  </style>
+</head>
+<body>
+
+<div id="ar-container"></div>
+
+<!-- HUD (visible while camera is live) -->
+<div id="hud">
+  <div class="hud-top">
+    <div class="hud-logo"><img src="logo.jpg" alt="" /></div>
+    <div class="hud-title">Bingo Secret</div>
+  </div>
+  <div class="hud-mid">
+    <div id="vf">
+      <div class="co tl"></div><div class="co tr"></div>
+      <div class="co bl"></div><div class="co br"></div>
+      <div id="sl"></div>
+    </div>
+    <div id="hint-text">📷 Pointez vers l'un de vos symboles</div>
+  </div>
+  <div></div><!-- spacer -->
+</div>
+
+<!-- Splash (shown before camera starts) -->
+<div id="splash">
+  <div class="orb orb-blue"></div>
+  <div class="orb orb-pink"></div>
+
+  <div class="logo-wrap">
+    <img src="logo.jpg" alt="Studio La Milie" />
+  </div>
+  <div>
+    <div class="s-label">Studio La Milie &bull; Lyon</div>
+    <h1 class="s-title">BINGO<br/>SECRET</h1>
+  </div>
+  <div class="divider"></div>
+  <div class="info-card">
+    <div class="info-icon">🎯</div>
+    <p class="info-text">
+      Pointez votre caméra vers <strong>n'importe quel symbole</strong> sur votre carte de bingo pour révéler le code secret !
+    </p>
+  </div>
+  <button id="start-btn" onclick="startAR()">📷 &nbsp;Lancer la caméra</button>
+  <div class="spinner" id="spinner"></div>
+  <div id="status-line"></div>
+</div>
+
+<!-- Error overlay -->
+<div id="err">
+  <h2 id="err-title">⚠️ Erreur</h2>
+  <p id="err-msg">Une erreur est survenue.</p>
+  <button onclick="location.reload()">Réessayer</button>
+</div>
+
+<!--
+  MARKERS indexed 0–11 must match the compilation order of targets.mind.
+  Compile order: Cerceau, Tissu, Pole, Spirale, Étoile, Éclair,
+  Projecteur, Ticket, Note, Applaudissements, Clé, Cadenas.
+-->
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+<script>
+'use strict';
+
+// Index 0–11 must match the compilation order of targets.mind
+const MARKERS = [
+  { code: 'BC24', name: 'Cerceau Aérien'   },
+  { code: 'DH57', name: 'Tissu Aérien'     },
+  { code: 'EK38', name: 'Pole Dance'       },
+  { code: 'FL49', name: 'Spirale'          },
+  { code: 'GM62', name: 'Étoile'           },
+  { code: 'HN75', name: 'Éclair'           },
+  { code: 'JP83', name: 'Projecteur'       },
+  { code: 'KQ46', name: 'Ticket'           },
+  { code: 'LR59', name: 'Note de Musique'  },
+  { code: 'MS27', name: 'Applaudissements' },
+  { code: 'NT63', name: 'Clé'              },
+  { code: 'PV84', name: 'Cadenas'          },
+];
+
+function setStatus(msg, isErr) {
+  const el = document.getElementById('status-line');
+  el.textContent = msg;
+  el.className = isErr ? 'err' : '';
+}
+
+function showError(title, msg) {
+  document.getElementById('splash').style.display = 'none';
+  document.getElementById('err-title').textContent = title;
+  document.getElementById('err-msg').textContent = msg;
+  document.getElementById('err').classList.add('on');
+}
+
+// Build the floating code card texture for a given code string
+function buildCard(code) {
+  const W = 512, H = 256;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
+    ctx.quadraticCurveTo(x+w, y, x+w, y+r); ctx.lineTo(x+w, y+h-r);
+    ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h); ctx.lineTo(x+r, y+h);
+    ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r);
+    ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+  }
+
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#4AAAD8'); bg.addColorStop(1, '#CC5FA0');
+  rr(0, 0, W, H, 36); ctx.fillStyle = bg; ctx.fill();
+
+  const sh = ctx.createLinearGradient(0, 0, 0, H * 0.55);
+  sh.addColorStop(0, 'rgba(255,255,255,.18)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+  rr(2, 2, W-4, H*0.55, 34); ctx.fillStyle = sh; ctx.fill();
+
+  rr(5, 5, W-10, H-10, 32);
+  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.font = '700 20px Poppins,Arial'; ctx.textAlign = 'center';
+  ctx.fillText('CODE SECRET', W/2, 48);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+  ctx.fillStyle = '#fff';
+  ctx.font = '800 138px Poppins,Arial'; ctx.textBaseline = 'middle';
+  ctx.fillText(code, W/2, H/2 + 18);
+  ctx.restore();
+
+  return cv;
+}
+
+let mindarThree = null;
+
+window.startAR = async function() {
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  document.getElementById('spinner').style.display = 'block';
+  setStatus('Initialisation…');
+
+  if (!window.MINDAR || !window.MINDAR.IMAGE) {
+    showError('⚠️ Librairie AR manquante', 'La librairie AR n\'a pas pu se charger. Rechargez la page.');
+    return;
+  }
+
+  try {
+    mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      container: document.getElementById('ar-container'),
+      imageTargetSrc: 'targets.mind',
+      maxTrack: MARKERS.length,
+      uiLoading: 'no',
+      uiScanning: 'no',
+      uiError: 'no',
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+    renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = window.THREE.NoToneMapping;
+    scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
+
+    // Particle geometry shared across all anchors
+    const pGeo = new window.THREE.SphereGeometry(0.007, 4, 4);
+    const pMats = [
+      new window.THREE.MeshBasicMaterial({ color: 0x7ECEF4 }),
+      new window.THREE.MeshBasicMaterial({ color: 0xE87DB5 }),
+      new window.THREE.MeshBasicMaterial({ color: 0xffffff }),
+    ];
+
+    // Track state per anchor
+    const anchorState = [];
+
+    MARKERS.forEach((marker, idx) => {
+      const tex = new window.THREE.CanvasTexture(buildCard(marker.code));
+      tex.encoding = window.THREE.sRGBEncoding;
+
+      const card = new window.THREE.Mesh(
+        new window.THREE.BoxGeometry(0.50, 0.25, 0.022),
+        [
+          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new window.THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
+          new window.THREE.MeshBasicMaterial({ map: tex }),
+          new window.THREE.MeshBasicMaterial({ color: 0xCC5FA0 }),
+        ]
+      );
+      card.position.set(0, 0.20, 0);
+      card.scale.set(0, 0, 0);
+
+      const particles = Array.from({ length: 10 }, (_, i) => {
+        const m = new window.THREE.Mesh(pGeo, pMats[i % 3]);
+        m.visible = false;
+        m.userData = {
+          ph: (i / 10) * Math.PI * 2,
+          r:  0.24 + Math.random() * 0.12,
+          sp: 0.45 + Math.random() * 0.55,
+          yb: 0.20 + Math.random() * 0.16,
+          ya: 0.022 + Math.random() * 0.022,
+        };
+        return m;
+      });
+
+      const anchor = mindarThree.addAnchor(idx);
+      anchor.group.add(card);
+      particles.forEach(p => anchor.group.add(p));
+
+      const state = { trackStart: null, bannerTimer: null, card, particles };
+      anchorState.push(state);
+
+      anchor.onTargetFound = () => {
+        state.trackStart = Date.now();
+        document.getElementById('hint-text').textContent = '🎯 ' + marker.name + ' — tenez immobile…';
+      };
+
+      anchor.onTargetLost = () => {
+        state.trackStart = null;
+        clearTimeout(state.bannerTimer);
+        card.scale.set(0, 0, 0);
+        particles.forEach(p => { p.visible = false; });
+        document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
+      };
+    });
+
+    setStatus('Ouverture de la caméra…');
+    await mindarThree.start();
+
+    document.getElementById('splash').style.display = 'none';
+    document.getElementById('hud').classList.add('on');
+
+    renderer.setAnimationLoop(() => {
+      const t = Date.now();
+
+      anchorState.forEach(({ trackStart, card, particles }) => {
+        if (trackStart === null) return;
+        const el = t - trackStart;
+        const s = 1 - Math.pow(1 - Math.min(1, el / 700), 3);
+        card.scale.set(s, s, s);
+        card.position.y = 0.20 + Math.sin(t * 0.0019) * 0.013;
+        card.rotation.y = Math.sin(t * 0.0009) * 0.09;
+        card.rotation.x = Math.sin(t * 0.0013) * 0.04;
+
+        if (el > 500) {
+          particles.forEach(p => {
+            p.visible = true;
+            const u = p.userData;
+            const a = t * 0.001 * u.sp + u.ph;
+            p.position.x = Math.cos(a) * u.r;
+            p.position.z = Math.sin(a) * u.r;
+            p.position.y = u.yb + Math.sin(t * 0.0025 + u.ph) * u.ya;
+            p.scale.setScalar(0.6 + 0.4 * Math.abs(Math.sin(t * 0.002 + u.ph)));
+          });
+        }
+      });
+
+      renderer.render(scene, camera);
+    });
+
+  } catch(e) {
+    console.error('AR error:', e);
+    const msg = (e && e.message || '').toLowerCase();
+    if (msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')) {
+      showError('📷 Accès caméra refusé', 'Allez dans Réglages → Caméra → Autoriser pour ce site, puis rechargez.');
+    } else if (msg.includes('notfound') || msg.includes('devicenotfound')) {
+      showError('📷 Caméra introuvable', 'Aucune caméra détectée sur cet appareil.');
+    } else {
+      showError('⚠️ Erreur (' + ((e && e.name) || '?') + ')', 'Détail : ' + (e && e.message || String(e)));
+    }
+  }
+};
+
+window.addEventListener('beforeunload', () => {
+  if (mindarThree) try { mindarThree.stop(); } catch(_) {}
+});
+</script>
+</body>
+</html>
