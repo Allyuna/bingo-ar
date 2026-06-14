@@ -327,6 +327,7 @@ async function startAR() {
 
       anchor.onTargetFound = () => {
         state.trackStart = Date.now();
+        console.log('Target found: index=' + idx + ' name=' + marker.name);
         document.getElementById('hint-text').textContent = '🎯 ' + marker.name + ' — tenez immobile…';
       };
 
