@@ -168,22 +168,29 @@
   Projecteur, Ticket, Note, Applaudissements, Clé, Cadenas.
 -->
 <script type="module">
-// Dynamic imports so startup errors are catchable and shown to the user
+// Preload libraries immediately — by the time the button is pressed they'll be ready
+const _libs = Promise.all([
+  import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js'),
+  import('three')
+]).then(([m, THREE]) => ({
+  MindARThree: m.MindARThree ?? m.default?.MindARThree ?? m.default,
+  THREE
+})).catch(e => ({ error: e }));
 
 // Index 0–11 must match the compilation order of targets.mind
 const MARKERS = [
-  { code: 'BC24', name: 'Cerceau Aérien'   },
-  { code: 'DH57', name: 'Tissu Aérien'     },
-  { code: 'EK38', name: 'Pole Dance'       },
-  { code: 'FL49', name: 'Spirale'          },
-  { code: 'GM62', name: 'Étoile'           },
-  { code: 'HN75', name: 'Éclair'           },
-  { code: 'JP83', name: 'Projecteur'       },
-  { code: 'KQ46', name: 'Ticket'           },
-  { code: 'LR59', name: 'Note de Musique'  },
-  { code: 'MS27', name: 'Applaudissements' },
-  { code: 'NT63', name: 'Clé'              },
-  { code: 'PV84', name: 'Cadenas'          },
+  { code: '2847', name: 'Cerceau Aérien'   },
+  { code: '5193', name: 'Tissu Aérien'     },
+  { code: '7362', name: 'Pole Dance'       },
+  { code: '4918', name: 'Spirale'          },
+  { code: '8531', name: 'Étoile'           },
+  { code: '3274', name: 'Éclair'           },
+  { code: '6489', name: 'Projecteur'       },
+  { code: '1756', name: 'Ticket'           },
+  { code: '9023', name: 'Note de Musique'  },
+  { code: '5847', name: 'Applaudissements' },
+  { code: '3691', name: 'Clé'              },
+  { code: '7248', name: 'Cadenas'          },
 ];
 
 function setStatus(msg, isErr) {
@@ -199,44 +206,83 @@ function showError(title, msg) {
   document.getElementById('err').classList.add('on');
 }
 
-function buildCard(code) {
-  const W = 512, H = 256;
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
+// Draw the holographic code display with slot-machine digit reveal
+function drawCode(ctx, digits, elapsed) {
+  const W = 512, H = 512;
+  ctx.clearRect(0, 0, W, H);
 
-  function rr(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
-  }
+  // Dark radial background
+  const bg = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, 240);
+  bg.addColorStop(0, 'rgba(18,6,46,0.97)');
+  bg.addColorStop(0.65, 'rgba(8,4,28,0.96)');
+  bg.addColorStop(1, 'rgba(4,2,14,0.88)');
+  ctx.beginPath(); ctx.arc(W/2, H/2, 240, 0, Math.PI*2);
+  ctx.fillStyle = bg; ctx.fill();
 
-  const bg = ctx.createLinearGradient(0,0,W,H);
-  bg.addColorStop(0,'#4AAAD8'); bg.addColorStop(1,'#CC5FA0');
-  rr(0,0,W,H,36); ctx.fillStyle = bg; ctx.fill();
-
-  const sh = ctx.createLinearGradient(0,0,0,H*0.55);
-  sh.addColorStop(0,'rgba(255,255,255,.18)'); sh.addColorStop(1,'rgba(255,255,255,0)');
-  rr(2,2,W-4,H*0.55,34); ctx.fillStyle = sh; ctx.fill();
-
-  rr(5,5,W-10,H-10,32);
-  ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=3; ctx.stroke();
-
-  ctx.fillStyle='rgba(255,255,255,.7)';
-  ctx.font='700 20px Poppins,Arial'; ctx.textAlign='center';
-  ctx.fillText('CODE SECRET',W/2,48);
-
+  // Outer glow ring
   ctx.save();
-  ctx.shadowColor='rgba(0,0,0,.4)'; ctx.shadowBlur=16; ctx.shadowOffsetY=6;
-  ctx.fillStyle='#fff';
-  ctx.font='800 138px Poppins,Arial'; ctx.textBaseline='middle';
-  ctx.fillText(code,W/2,H/2+18);
+  ctx.beginPath(); ctx.arc(W/2, H/2, 238, 0, Math.PI*2);
+  ctx.strokeStyle = '#7ECEF4'; ctx.lineWidth = 3;
+  ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 28;
+  ctx.stroke(); ctx.restore();
+
+  // Inner pink ring
+  ctx.save();
+  ctx.beginPath(); ctx.arc(W/2, H/2, 218, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(232,125,181,0.22)'; ctx.lineWidth = 1;
+  ctx.stroke(); ctx.restore();
+
+  // Horizontal scanlines inside circle
+  ctx.save(); ctx.globalAlpha = 0.045; ctx.strokeStyle = '#7ECEF4'; ctx.lineWidth = 1;
+  for (let y = 8; y < H; y += 14) {
+    const dx = Math.sqrt(Math.max(0, 236*236 - (y - H/2)*(y - H/2)));
+    if (dx > 0) { ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); }
+  }
   ctx.restore();
 
-  return cv;
+  // Label
+  ctx.save();
+  ctx.font = '700 22px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(126,206,244,0.9)';
+  ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 10;
+  ctx.fillText('✦  CODE SECRET  ✦', W/2, 148); ctx.restore();
+
+  // Divider lines
+  [[175, 'rgba(126,206,244,0.25)'], [H - 148, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
+    const dx = Math.sqrt(Math.max(0, 190*190 - (y - H/2)*(y - H/2)));
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); ctx.restore();
+  });
+
+  // Digits — slot machine reveal
+  const LOCK_TIMES = [300, 540, 780, 1020];
+  const SPACING = 104;
+  const startX = W/2 - SPACING * 1.5;
+  const cy = H/2 + 16;
+  ctx.font = '800 128px Arial,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  digits.forEach((final, i) => {
+    const locked = elapsed >= LOCK_TIMES[i];
+    const spinning = !locked && elapsed > 60;
+    const d = spinning ? String(Math.floor((elapsed * (14 + i*5) / 1000 + i*7) % 10)) : final;
+    ctx.save();
+    if (locked) {
+      const g = ctx.createLinearGradient(0, cy-64, 0, cy+64);
+      g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.45, '#F4F0FF'); g.addColorStop(1, '#E87DB5');
+      ctx.fillStyle = g; ctx.shadowColor = '#E87DB5'; ctx.shadowBlur = 32;
+    } else {
+      const flicker = 0.38 + 0.28 * Math.abs(Math.sin(elapsed * 0.011 + i * 1.8));
+      ctx.fillStyle = `rgba(126,206,244,${flicker})`; ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 14;
+    }
+    ctx.fillText(d, startX + i * SPACING, cy); ctx.restore();
+  });
+
+  // Hint
+  ctx.save();
+  ctx.font = '500 17px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 122); ctx.restore();
 }
 
 let mindarThree = null;
@@ -245,33 +291,22 @@ async function startAR() {
   const btn = document.getElementById('start-btn');
   btn.disabled = true;
   document.getElementById('spinner').style.display = 'block';
-  setStatus('Chargement des librairies AR…');
+  setStatus('Chargement…');
 
-  let MindARThree, THREE;
-  try {
-    const mindarMod = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js');
-    MindARThree = mindarMod.MindARThree ?? mindarMod.default?.MindARThree ?? mindarMod.default;
-    THREE = await import('three');
-  } catch(e) {
-    showError('⚠️ Librairie AR manquante', 'Erreur de chargement : ' + (e.message || String(e)));
+  const libs = await _libs;
+  if (libs.error || !libs.MindARThree) {
+    showError('⚠️ Librairie AR manquante', 'Erreur : ' + (libs.error?.message || 'MindARThree introuvable'));
     return;
   }
-
-  if (!MindARThree) {
-    showError('⚠️ Librairie AR manquante', 'MindARThree introuvable — vérifiez votre connexion et rechargez.');
-    return;
-  }
+  const { MindARThree, THREE } = libs;
 
   setStatus('Initialisation…');
-
   try {
     mindarThree = new MindARThree({
       container: document.getElementById('ar-container'),
       imageTargetSrc: 'targets.mind',
       maxTrack: MARKERS.length,
-      uiLoading: 'no',
-      uiScanning: 'no',
-      uiError: 'no',
+      uiLoading: 'no', uiScanning: 'no', uiError: 'no',
     });
 
     const { renderer, scene, camera } = mindarThree;
@@ -279,61 +314,58 @@ async function startAR() {
     renderer.toneMapping = THREE.NoToneMapping;
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
 
-    const pGeo = new THREE.SphereGeometry(0.007, 4, 4);
-    const pMats = [
-      new THREE.MeshBasicMaterial({ color: 0x7ECEF4 }),
-      new THREE.MeshBasicMaterial({ color: 0xE87DB5 }),
-      new THREE.MeshBasicMaterial({ color: 0xffffff }),
-    ];
-
     const anchorState = [];
+    const pGeo = new THREE.SphereGeometry(0.006, 4, 4);
 
     MARKERS.forEach((marker, idx) => {
-      const tex = new THREE.CanvasTexture(buildCard(marker.code));
+      // Canvas sprite (always faces camera)
+      const cv = document.createElement('canvas');
+      cv.width = 512; cv.height = 512;
+      const ctx2d = cv.getContext('2d');
+      const tex = new THREE.CanvasTexture(cv);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+      sprite.scale.set(0, 0, 0);
+      sprite.position.set(0, 0.32, 0);
 
-      const card = new THREE.Mesh(
-        new THREE.BoxGeometry(0.50, 0.25, 0.022),
-        [
-          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new THREE.MeshBasicMaterial({ color: 0x4AAAD8 }),
-          new THREE.MeshBasicMaterial({ map: tex }),
-          new THREE.MeshBasicMaterial({ color: 0xCC5FA0 }),
-        ]
+      // Gyroscope ring 1 (cyan, slightly tilted)
+      const ring1 = new THREE.Mesh(
+        new THREE.TorusGeometry(0.21, 0.007, 8, 64),
+        new THREE.MeshBasicMaterial({ color: 0x7ECEF4 })
       );
-      card.position.set(0, 0.20, 0);
-      card.scale.set(0, 0, 0);
+      ring1.rotation.x = Math.PI * 0.18;
+      ring1.scale.set(0, 0, 0);
 
-      const particles = Array.from({ length: 10 }, (_, i) => {
-        const m = new THREE.Mesh(pGeo, pMats[i % 3]);
+      // Gyroscope ring 2 (pink, opposite tilt)
+      const ring2 = new THREE.Mesh(
+        new THREE.TorusGeometry(0.21, 0.007, 8, 64),
+        new THREE.MeshBasicMaterial({ color: 0xE87DB5 })
+      );
+      ring2.rotation.x = -Math.PI * 0.18;
+      ring2.scale.set(0, 0, 0);
+
+      // Orbiting particles
+      const particles = Array.from({ length: 8 }, (_, i) => {
+        const m = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: i%2===0 ? 0x7ECEF4 : 0xE87DB5 }));
         m.visible = false;
-        m.userData = {
-          ph: (i / 10) * Math.PI * 2,
-          r:  0.24 + Math.random() * 0.12,
-          sp: 0.45 + Math.random() * 0.55,
-          yb: 0.20 + Math.random() * 0.16,
-          ya: 0.022 + Math.random() * 0.022,
-        };
+        m.userData = { ph: (i/8)*Math.PI*2, r: 0.27, sp: 0.7+Math.random()*0.6, yb: 0.12, ya: 0.025 };
         return m;
       });
 
       const anchor = mindarThree.addAnchor(idx);
-      anchor.group.add(card);
+      anchor.group.add(sprite, ring1, ring2);
       particles.forEach(p => anchor.group.add(p));
 
-      const state = { trackStart: null, card, particles };
+      const state = { trackStart: null, sprite, ring1, ring2, particles, cv, ctx2d, tex, digits: marker.code.split(''), allLocked: false };
       anchorState.push(state);
 
       anchor.onTargetFound = () => {
         state.trackStart = Date.now();
-        console.log('Target found: index=' + idx + ' name=' + marker.name);
-        document.getElementById('hint-text').textContent = '🎯 ' + marker.name + ' — tenez immobile…';
+        state.allLocked = false;
+        document.getElementById('hint-text').textContent = '🎯 ' + marker.name;
       };
-
       anchor.onTargetLost = () => {
         state.trackStart = null;
-        card.scale.set(0, 0, 0);
+        sprite.scale.set(0,0,0); ring1.scale.set(0,0,0); ring2.scale.set(0,0,0);
         particles.forEach(p => { p.visible = false; });
         document.getElementById('hint-text').textContent = '📷 Pointez vers l\'un de vos symboles';
       };
@@ -341,30 +373,47 @@ async function startAR() {
 
     setStatus('Ouverture de la caméra…');
     await mindarThree.start();
-
     document.getElementById('splash').style.display = 'none';
     document.getElementById('hud').classList.add('on');
 
     renderer.setAnimationLoop(() => {
       const t = Date.now();
-      anchorState.forEach(({ trackStart, card, particles }) => {
+      anchorState.forEach(state => {
+        const { trackStart, sprite, ring1, ring2, particles, ctx2d, tex, digits } = state;
         if (trackStart === null) return;
-        const el = t - trackStart;
-        const s = 1 - Math.pow(1 - Math.min(1, el / 700), 3);
-        card.scale.set(s, s, s);
-        card.position.y = 0.20 + Math.sin(t * 0.0019) * 0.013;
-        card.rotation.y = Math.sin(t * 0.0009) * 0.09;
-        card.rotation.x = Math.sin(t * 0.0013) * 0.04;
-        if (el > 500) {
+        const elapsed = t - trackStart;
+
+        // Spring scale-in
+        const s = 1 - Math.pow(1 - Math.min(1, elapsed / 550), 3);
+        const ss = s * 0.50;
+        sprite.scale.set(ss, ss, ss);
+        sprite.position.y = 0.30 + Math.sin(t * 0.0018) * 0.014;
+
+        ring1.scale.set(s, s, s);
+        ring2.scale.set(s, s, s);
+        ring1.rotation.y = t * 0.0014;
+        ring2.rotation.y = -t * 0.0009;
+
+        if (elapsed > 350) {
           particles.forEach(p => {
             p.visible = true;
             const u = p.userData;
             const a = t * 0.001 * u.sp + u.ph;
             p.position.x = Math.cos(a) * u.r;
             p.position.z = Math.sin(a) * u.r;
-            p.position.y = u.yb + Math.sin(t * 0.0025 + u.ph) * u.ya;
-            p.scale.setScalar(0.6 + 0.4 * Math.abs(Math.sin(t * 0.002 + u.ph)));
+            p.position.y = u.yb + Math.sin(t * 0.002 + u.ph) * u.ya;
           });
+        }
+
+        // Canvas: update during slot machine phase, then once on lock
+        if (!state.allLocked) {
+          drawCode(ctx2d, digits, elapsed);
+          tex.needsUpdate = true;
+          if (elapsed > 1150) {
+            state.allLocked = true;
+            drawCode(ctx2d, digits, 2000); // force final locked state
+            tex.needsUpdate = true;
+          }
         }
       });
       renderer.render(scene, camera);
@@ -372,14 +421,13 @@ async function startAR() {
 
   } catch(e) {
     console.error('AR error:', e);
-    const msg = (e && e.message || '').toLowerCase();
-    if (msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')) {
-      showError('📷 Accès caméra refusé', 'Allez dans Réglages → Caméra → Autoriser pour ce site, puis rechargez.');
-    } else if (msg.includes('notfound') || msg.includes('devicenotfound')) {
-      showError('📷 Caméra introuvable', 'Aucune caméra détectée sur cet appareil.');
-    } else {
-      showError('⚠️ Erreur (' + ((e && e.name) || '?') + ')', 'Détail : ' + (e && e.message || String(e)));
-    }
+    const msg = (e?.message || '').toLowerCase();
+    if (msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed'))
+      showError('📷 Accès caméra refusé', 'Autorisez la caméra dans les réglages puis rechargez.');
+    else if (msg.includes('notfound') || msg.includes('devicenotfound'))
+      showError('📷 Caméra introuvable', 'Aucune caméra détectée.');
+    else
+      showError('⚠️ Erreur (' + (e?.name||'?') + ')', e?.message || String(e));
   }
 }
 
