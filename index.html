@@ -162,8 +162,7 @@
   Projecteur, Ticket, Note, Applaudissements, Clé, Cadenas.
 -->
 <script type="module">
-import { MindARThree } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js';
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js';
+// Dynamic imports so startup errors are catchable and shown to the user
 
 // Index 0–11 must match the compilation order of targets.mind
 const MARKERS = [
@@ -240,6 +239,23 @@ async function startAR() {
   const btn = document.getElementById('start-btn');
   btn.disabled = true;
   document.getElementById('spinner').style.display = 'block';
+  setStatus('Chargement des librairies AR…');
+
+  let MindARThree, THREE;
+  try {
+    const mindarMod = await import('https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js');
+    MindARThree = mindarMod.MindARThree ?? mindarMod.default?.MindARThree ?? mindarMod.default;
+    THREE = await import('https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js');
+  } catch(e) {
+    showError('⚠️ Librairie AR manquante', 'Erreur de chargement : ' + (e.message || String(e)));
+    return;
+  }
+
+  if (!MindARThree) {
+    showError('⚠️ Librairie AR manquante', 'MindARThree introuvable — vérifiez votre connexion et rechargez.');
+    return;
+  }
+
   setStatus('Initialisation…');
 
   try {
