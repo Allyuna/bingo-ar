@@ -237,10 +237,10 @@ function drawCode(ctx, digits, elapsed) {
   ctx.font = '700 40px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(126,206,244,0.9)';
   ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 14;
-  ctx.fillText('✦  CODE SECRET  ✦', W/2, 136); ctx.restore();
+  ctx.fillText('✦  CODE SECRET  ✦', W/2, 148); ctx.restore();
 
   // Divider lines
-  [[168, 'rgba(126,206,244,0.25)'], [H - 136, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
+  [[178, 'rgba(126,206,244,0.25)'], [H - 148, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
     const dx = Math.sqrt(Math.max(0, 190*190 - (y - H/2)*(y - H/2)));
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); ctx.restore();
@@ -248,10 +248,10 @@ function drawCode(ctx, digits, elapsed) {
 
   // Digits — slot machine reveal
   const LOCK_TIMES = [300, 540, 780, 1020];
-  const SPACING = 108;
+  const SPACING = 96;
   const startX = W/2 - SPACING * 1.5;
-  const cy = H/2 + 14;
-  ctx.font = '800 164px Arial,sans-serif';
+  const cy = H/2 + 10;
+  ctx.font = '800 152px Arial,sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
   digits.forEach((final, i) => {
@@ -260,7 +260,7 @@ function drawCode(ctx, digits, elapsed) {
     const d = spinning ? String(Math.floor((elapsed * (14 + i*5) / 1000 + i*7) % 10)) : final;
     ctx.save();
     if (locked) {
-      const g = ctx.createLinearGradient(0, cy-64, 0, cy+64);
+      const g = ctx.createLinearGradient(0, cy-76, 0, cy+76);
       g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.45, '#F4F0FF'); g.addColorStop(1, '#E87DB5');
       ctx.fillStyle = g; ctx.shadowColor = '#E87DB5'; ctx.shadowBlur = 32;
     } else {
@@ -274,7 +274,7 @@ function drawCode(ctx, digits, elapsed) {
   ctx.save();
   ctx.font = '500 34px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 108); ctx.restore();
+  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 98); ctx.restore();
 }
 
 let mindarThree = null;
