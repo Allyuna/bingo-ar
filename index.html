@@ -240,7 +240,7 @@ function drawCode(ctx, digits, elapsed) {
   ctx.fillText('✦  CODE SECRET  ✦', W/2, 148); ctx.restore();
 
   // Divider lines
-  [[178, 'rgba(126,206,244,0.25)'], [H - 148, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
+  [[178, 'rgba(126,206,244,0.25)'], [H - 122, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
     const dx = Math.sqrt(Math.max(0, 190*190 - (y - H/2)*(y - H/2)));
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); ctx.restore();
@@ -272,9 +272,9 @@ function drawCode(ctx, digits, elapsed) {
 
   // Hint
   ctx.save();
-  ctx.font = '500 34px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '500 28px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 98); ctx.restore();
+  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 92); ctx.restore();
 }
 
 let mindarThree = null;
