@@ -233,13 +233,13 @@ function drawCode(ctx, digits, elapsed) {
 
   // Label
   ctx.save();
-  ctx.font = '700 32px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 40px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(126,206,244,0.9)';
-  ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 10;
-  ctx.fillText('✦  CODE SECRET  ✦', W/2, 148); ctx.restore();
+  ctx.shadowColor = '#7ECEF4'; ctx.shadowBlur = 14;
+  ctx.fillText('✦  CODE SECRET  ✦', W/2, 136); ctx.restore();
 
   // Divider lines
-  [[175, 'rgba(126,206,244,0.25)'], [H - 148, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
+  [[168, 'rgba(126,206,244,0.25)'], [H - 136, 'rgba(232,125,181,0.25)']].forEach(([y, color]) => {
     const dx = Math.sqrt(Math.max(0, 190*190 - (y - H/2)*(y - H/2)));
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(W/2-dx, y); ctx.lineTo(W/2+dx, y); ctx.stroke(); ctx.restore();
@@ -247,10 +247,10 @@ function drawCode(ctx, digits, elapsed) {
 
   // Digits — slot machine reveal
   const LOCK_TIMES = [300, 540, 780, 1020];
-  const SPACING = 104;
+  const SPACING = 108;
   const startX = W/2 - SPACING * 1.5;
-  const cy = H/2 + 16;
-  ctx.font = '800 128px Arial,sans-serif';
+  const cy = H/2 + 14;
+  ctx.font = '800 164px Arial,sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
   digits.forEach((final, i) => {
@@ -271,9 +271,9 @@ function drawCode(ctx, digits, elapsed) {
 
   // Hint
   ctx.save();
-  ctx.font = '500 26px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '500 34px Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 122); ctx.restore();
+  ctx.fillText('Note-le sur ta case ! 📝', W/2, H - 108); ctx.restore();
 }
 
 let mindarThree = null;
@@ -392,7 +392,7 @@ async function startAR() {
 
         // Sprite scale-in + float
         const s = 1 - Math.pow(1 - Math.min(1, elapsed / 550), 3);
-        const ss = s * 0.50;
+        const ss = s * 0.88;
         sprite.scale.set(ss, ss, ss);
         sprite.position.y = 0.30 + Math.sin(t * 0.0018) * 0.014;
 
